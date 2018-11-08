@@ -11,6 +11,7 @@ using Alexa.NET.Response;
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
+//公式チュートリアル第4回（https://developer.amazon.com/ja/blogs/alexa/post/4144a8ea-7549-4c44-a4bd-e94cb93807ea/chapter4-jp）の内容です。
 namespace HoroscopeSkill_CSharp
 {
     public class Function
