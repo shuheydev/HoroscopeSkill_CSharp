@@ -155,14 +155,14 @@ namespace HoroscopeSkill_CSharp
             //セッションオブジェクトを取得
             var attributes = skillResponse.SessionAttributes;
 
-            //nullじゃなければユーザーの星座を保持
+            //nullだったらインスタンスを生成
             if (attributes == null)
             {
                 attributes = new Dictionary<string, object>();
             }
-
+            //「sign」をキーにしてユーザーの星座を格納
             attributes["sign"] = sign;
-
+            //レスポンスに格納
             skillResponse.SessionAttributes = attributes;
 
             return skillResponse;
@@ -230,18 +230,12 @@ namespace HoroscopeSkill_CSharp
             {
                 Text = speechText
             };
-            skillResponse.Response.Reprompt = new Reprompt
-            {
-                OutputSpeech = new PlainTextOutputSpeech
-                {
-                    Text = speechText
-                }
-            };
             skillResponse.Response.Card = new SimpleCard
             {
                 Title = "サンプル星占い",
                 Content = speechText
             };
+            skillResponse.Response.ShouldEndSession = true;//セッション終了を指定
 
             return skillResponse;
         }
@@ -340,6 +334,6 @@ namespace HoroscopeSkill_CSharp
         }
 
         #endregion
-
+        //テスト
     }
 }
