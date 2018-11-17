@@ -1,12 +1,16 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-using Amazon.Lambda.Core;
 using Alexa.NET.Request;
 using Alexa.NET.Request.Type;
 using Alexa.NET.Response;
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.Model;
+using Amazon.Lambda.Core;
+using Amazon.Runtime.Internal;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Amazon;
+using Amazon.Runtime;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
@@ -16,6 +20,7 @@ namespace HoroscopeSkill_CSharp
 {
     public class Function
     {
+
         private class FortuneScore
         {
             public string Score { get; }
@@ -50,6 +55,9 @@ namespace HoroscopeSkill_CSharp
             "ホワイト",
             "チャコールグレー"
         };
+
+
+        private readonly string _tableName = "HoroscopeSkillTableCSharp";
 
         /// <summary>
         /// A simple function that takes a string and does a ToUpper
@@ -153,6 +161,9 @@ namespace HoroscopeSkill_CSharp
                     Text = repromptText
                 }
             };
+
+
+            #region セッションオブジェクトを利用
             //セッションオブジェクトを取得
             var attributes = skillResponse.SessionAttributes;
 
@@ -166,8 +177,31 @@ namespace HoroscopeSkill_CSharp
             //レスポンスに格納
             skillResponse.SessionAttributes = attributes;
 
+            #endregion
+
+
+            #region DynamoDBを利用した永続アトリビュート
+
+            //レコードのプライマリキーにuserIdを使用
+            var userId = skillRequest.Session.User.UserId;
+
+            var attrManager = AttributesManager.Current(userId);
+
+            //テーブル作成
+            attrManager.CreateTable(_tableName);
+
+            //ユーザーの星座情報をsignをキーにしてセット
+            attrManager.SetPersistentAttributes("sign", sign);
+            //セットした情報をDynamoDBに保存
+            attrManager.SavePersistentAttributes();
+
+            #endregion
+
+
             return skillResponse;
         }
+
+
 
         private SkillResponse LuckyColorIntentHandler(SkillRequest skillRequest)
         {
@@ -182,6 +216,8 @@ namespace HoroscopeSkill_CSharp
             };
 
 
+            //ローカル関数だった。忘れてた。
+            //
             SkillResponse ComposeReturnToAskFortuneResponse()
             {
                 speechText = "そういえばまだ運勢を占っていませんでしたね。";
@@ -203,29 +239,50 @@ namespace HoroscopeSkill_CSharp
                 return skillResponse;
             }
 
-            //保存された情報がない場合(sessionAttributesがない)
-            if (skillRequest.Session.Attributes == null)
+
+            #region セッションアトリビュートから値を取得
+            ////保存された情報がない場合(sessionAttributesがない)
+            //if (skillRequest.Session.Attributes == null)
+            //{
+            //    return ComposeReturnToAskFortuneResponse();
+            //}
+
+            ////セッションオブジェクトを取り出す
+            //Dictionary<string, object> attributes = skillRequest.Session.Attributes;
+
+            ////もう一つ、Attributesの中に目的のキーがない
+            //if (!attributes.ContainsKey("sign"))
+            //{
+            //    return ComposeReturnToAskFortuneResponse();
+            //}
+
+            #endregion
+
+
+            #region DynamoDB
+            //userIdは初回のみでよい
+            var attrManager = AttributesManager.Current("amzn1.ask.account.AGHNE5Z3INHGQOCAZUAD5XYZP4VEZTJEX7OUEIEXBRXVJOID6ZVC5DHUK6PBIRXKXENMT3J46TL2MWP4O7RBVJVSKEUOXRYNT2ZWU7ZWHIEUNLB4T7JHK6MMF4MZWGH7X2DN7DDJUJ6AVHP72MQKFQBSRUT4O5DAZPA23B3DMHTUFHSCBLZF6J64VRDBZIRYQX4OO3QW2KU3HLY");
+            attrManager.ConnectTable(_tableName);
+
+            var attr=attrManager.GetPersistentAttributes();
+
+            if (attr == null)
             {
                 return ComposeReturnToAskFortuneResponse();
             }
 
-            //セッションオブジェクトを取り出す
-            Dictionary<string, object> attributes = skillRequest.Session.Attributes;
 
-            //もう一つ、Attributesの中に目的のキーがない
-            if (!attributes.ContainsKey("sign"))
-            {
-                return ComposeReturnToAskFortuneResponse();
-            }
-
-
+            #endregion
 
             var random = new Random();
             int luckyColorIdx = random.Next(3);
             var luckyColor = _luckyColors[luckyColorIdx];
 
-            speechText = $"今日の{attributes["sign"]}のラッキーカラーは" +
-                $"{luckyColor}です。素敵ないちにちを。";
+            //speechText = $"今日の{attributes["sign"]}のラッキーカラーは" +
+            //    $"{luckyColor}です。素敵ないちにちを。";
+
+            speechText = $"今日の{attr["sign"]}のラッキーカラーは" +
+                         $"{luckyColor}です。素敵ないちにちを。";
 
             skillResponse.Response.OutputSpeech = new PlainTextOutputSpeech
             {
@@ -335,6 +392,5 @@ namespace HoroscopeSkill_CSharp
         }
 
         #endregion
-        //テスト
     }
 }
