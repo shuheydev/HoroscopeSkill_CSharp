@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using AlexaPersistentAttributesManager;
 using Amazon;
 using Amazon.Runtime;
 
@@ -109,7 +110,7 @@ namespace HoroscopeSkill_CSharp
                         break;
                 }
             }
-            catch (Exception ex)
+            catch
             {
                 skillResponse = ErrorHandler(skillRequest);
             }
@@ -163,6 +164,7 @@ namespace HoroscopeSkill_CSharp
             };
 
 
+
             #region セッションオブジェクトを利用
             //セッションオブジェクトを取得
             var attributes = skillResponse.SessionAttributes;
@@ -180,15 +182,14 @@ namespace HoroscopeSkill_CSharp
             #endregion
 
 
+
             #region DynamoDBを利用した永続アトリビュート
 
             //レコードのプライマリキーにuserIdを使用
             var userId = skillRequest.Session.User.UserId;
 
-            var attrManager = AttributesManager.Current(userId);
+            var attrManager=new AttributesManager(userId,_tableName);
 
-            //テーブル作成
-            attrManager.CreateTable(_tableName);
 
             //ユーザーの星座情報をsignをキーにしてセット
             attrManager.SetPersistentAttributes("sign", sign);
@@ -241,47 +242,41 @@ namespace HoroscopeSkill_CSharp
 
 
             #region セッションアトリビュートから値を取得
-            ////保存された情報がない場合(sessionAttributesがない)
-            //if (skillRequest.Session.Attributes == null)
-            //{
-            //    return ComposeReturnToAskFortuneResponse();
-            //}
-
-            ////セッションオブジェクトを取り出す
-            //Dictionary<string, object> attributes = skillRequest.Session.Attributes;
-
-            ////もう一つ、Attributesの中に目的のキーがない
-            //if (!attributes.ContainsKey("sign"))
-            //{
-            //    return ComposeReturnToAskFortuneResponse();
-            //}
+            var sign = skillRequest.Session.Attributes?["sign"].ToString() ?? "";
 
             #endregion
 
 
-            #region DynamoDB
-            //userIdは初回のみでよい
-            var attrManager = AttributesManager.Current("amzn1.ask.account.AGHNE5Z3INHGQOCAZUAD5XYZP4VEZTJEX7OUEIEXBRXVJOID6ZVC5DHUK6PBIRXKXENMT3J46TL2MWP4O7RBVJVSKEUOXRYNT2ZWU7ZWHIEUNLB4T7JHK6MMF4MZWGH7X2DN7DDJUJ6AVHP72MQKFQBSRUT4O5DAZPA23B3DMHTUFHSCBLZF6J64VRDBZIRYQX4OO3QW2KU3HLY");
-            attrManager.ConnectTable(_tableName);
 
-            var attr=attrManager.GetPersistentAttributes();
+            #region DynamoDBから値を取得
 
-            if (attr == null)
+            if (string.IsNullOrEmpty(sign))
+            {
+                var userId = skillRequest.Session.User.UserId;
+                var attrManager = new AttributesManager(userId, _tableName);
+
+                var attr = attrManager.GetPersistentAttributes();
+
+                sign = attr?["sign"] ?? "";
+            }
+
+            #endregion
+
+
+            //セッションアトリビュートと永続アトリビュートのどちらにも値が入っていなければ
+            //ここでリターン
+            if (string.IsNullOrEmpty(sign))
             {
                 return ComposeReturnToAskFortuneResponse();
             }
 
 
-            #endregion
-
+            //ラッキーカラーをランダムで。
             var random = new Random();
-            int luckyColorIdx = random.Next(3);
+            var luckyColorIdx = random.Next(3);
             var luckyColor = _luckyColors[luckyColorIdx];
 
-            //speechText = $"今日の{attributes["sign"]}のラッキーカラーは" +
-            //    $"{luckyColor}です。素敵ないちにちを。";
-
-            speechText = $"今日の{attr["sign"]}のラッキーカラーは" +
+            speechText = $"今日の{sign}のラッキーカラーは" +
                          $"{luckyColor}です。素敵ないちにちを。";
 
             skillResponse.Response.OutputSpeech = new PlainTextOutputSpeech
